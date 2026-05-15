@@ -55,6 +55,8 @@ function trafficFor(room, excludeId, excludeCallsign){
 function broadcastRoom(room){
   const traffic = roomClients(room);
   for(const c of traffic){
+    // Só envia broadcast de tráfego para browsers, não para bridges
+    if(c.role === 'bridge') continue;
     const players = trafficFor(room, c.id, c.callsign);
     send(c.ws, {type:'traffic', room, players});
   }
@@ -135,15 +137,25 @@ wss.on('connection',(ws,req)=>{
   });
 });
 
+// Keep-alive ping a cada 30s para manter conexão viva
+setInterval(()=>{
+  for(const [id,c] of clients){
+    if(c.ws.readyState === 1){
+      try{ c.ws.ping(); }catch(e){}
+    }
+  }
+},30000);
+
+// Cleanup de clientes inativos a cada minuto
 setInterval(()=>{
   const now=Date.now();
   for(const [id,c] of clients){
-    if(now-c.lastSeen > 120000){
+    if(now-c.lastSeen > 300000){
       try{c.ws.close()}catch(e){}
       clients.delete(id);
     }
   }
-},30000);
+},60000);
 
 server.listen(PORT,'0.0.0.0',()=>{
   console.log('====================================');
